@@ -1,0 +1,158 @@
+import itertools
+import math
+import random
+import matplotlib.pyplot as plt
+import tracemalloc
+from time import time
+
+def distance_between_points(angle1, angle2, radius):
+    theta1 = math.radians(angle1)
+    theta2 = math.radians(angle2)
+    return radius * math.sqrt(2 * (1 - math.cos(theta2 - theta1)))
+
+def total_distance(cities, radius):
+    total_dist = 0
+    n = len(cities)
+    for i in range(n):
+        total_dist += distance_between_points(cities[i], cities[(i + 1) % n], radius)
+    return total_dist
+
+# 1. Exhaustive Search with Heap's algorithm for unique permutations
+def generate_permutations_heap(cities):
+    def heap_permute(k, array):
+        if k == 1:
+            yield array[:]
+        else:
+            for i in range(k):
+                yield from heap_permute(k - 1, array)
+                if k % 2 == 0:  # if k is even
+                    array[i], array[k - 1] = array[k - 1], array[i]
+                else:  # if k is odd
+                    array[0], array[k - 1] = array[k - 1], array[0]
+
+    # Fix the first city to avoid counting rotated versions as separate routes
+    first_city = cities[0]
+    for perm in heap_permute(len(cities) - 1, cities[1:]):
+        yield [first_city] + perm
+
+def solve_exhaustive(cities, radius):
+    tracemalloc.start()
+    tiempo_inicio = time()
+    all_permutations = generate_permutations_heap(cities)
+    best_route, min_distance = None, float('inf')
+    distances_per_iteration = []
+    route_count = 0  # To ensure only 36 routes are considered
+
+    for route in all_permutations:
+        dist = total_distance(route, radius)
+        distances_per_iteration.append(dist)
+        if dist < min_distance:
+            min_distance, best_route = dist, route
+        route_count += 1
+        if route_count == 36:  # Stop after 36 unique routes
+            break
+    memoria_actual, memoria_pico = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    tiempo_total = time() - tiempo_inicio
+    memoria_pico_kb = memoria_pico / 1024
+
+    return best_route, min_distance, distances_per_iteration, memoria_pico_kb, tiempo_total
+
+# 2. Random Search
+def solve_random_search(cities, radius, iterations=36):
+    tracemalloc.start()
+    tiempo_inicio = time()
+    min_distance, best_route = float('inf'), None
+    distances_per_iteration = []
+    for _ in range(iterations):
+        random_route = random.sample(cities, len(cities))
+        dist = total_distance(random_route, radius)
+        distances_per_iteration.append(dist)
+        if dist < min_distance:
+            min_distance, best_route = dist, random_route
+
+    memoria_actual, memoria_pico = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    tiempo_total = time() - tiempo_inicio
+    memoria_pico_kb = memoria_pico / 1024
+
+    return best_route, min_distance, distances_per_iteration, memoria_pico_kb, tiempo_total
+
+# 3. Hill-Climbing Search with Tweak
+def tweak_route(route, method="swap"):
+    new_route = route[:]
+    if method == "reverse":
+        i, j = sorted(random.sample(range(len(route)), 2))
+        new_route[i:j+1] = reversed(new_route[i:j+1])
+    elif method == "swap":
+        i, j = random.sample(range(len(route)), 2)
+        new_route[i], new_route[j] = new_route[j], new_route[i]
+    elif method == "insert":
+        i, j = random.sample(range(len(route)), 2)
+        node = new_route.pop(i)
+        new_route.insert(j, node)
+    return new_route
+
+def solve_hill_climbing(cities, radius, iterations=36, tweak_method="swap"):
+    tracemalloc.start()
+    tiempo_inicio = time()
+    best_route = cities[:]
+    min_distance = total_distance(best_route, radius)
+    distances_per_iteration = [min_distance]
+
+    for _ in range(iterations):
+        new_route = tweak_route(best_route, method=tweak_method)
+        dist = total_distance(new_route, radius)
+        if dist < min_distance:
+            min_distance, best_route = dist, new_route
+        distances_per_iteration.append(min_distance)
+
+    memoria_actual, memoria_pico = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    tiempo_total = time() - tiempo_inicio
+    memoria_pico_kb = memoria_pico / 1024
+
+    return best_route, min_distance, distances_per_iteration, memoria_pico_kb, tiempo_total
+
+# Plotting function
+def plot_results(distances_exhaustive, distances_random, distances_hill_climb):
+    plt.figure(figsize=(10,6))
+
+    # Exhaustive Search
+    plt.plot(distances_exhaustive, label="Búsqueda Exhaustiva", color='purple')
+
+    # Random Search
+    plt.plot(distances_random, label="Búsqueda Aleatoria", color="blue")
+
+    # Hill-Climbing Search
+    plt.plot(distances_hill_climb, label="Búsqueda Hill-Climbing", color='red')
+
+    plt.xlabel("Iteración")
+    plt.ylabel("Distancia")
+    plt.legend()
+    plt.title("Algoritmos para TSP")
+    plt.show()
+
+# Example usage
+num_cities = 6
+radius = 10
+cities = [i * (360 / num_cities) for i in range(num_cities)]
+
+# Run each algorithm
+best_route_exhaustive, min_distance_exhaustive, distances_exhaustive, memoria_pico_kb_exhaustive, tiempo1 = solve_exhaustive(cities, radius)
+best_route_random, min_distance_random, distances_random, memoria1, tiempo2 = solve_random_search(cities, radius)
+best_route_hill_climb, min_distance_hill_climb, distances_hill_climb, memoria2, tiempo3 = solve_hill_climbing(cities, radius, tweak_method="swap")
+
+# Plot results
+plot_results(distances_exhaustive, distances_random, distances_hill_climb)
+
+# Print results
+print("Mejor Ruta Búsqueda Exhaustiva:", best_route_exhaustive, "Distancia:", min_distance_exhaustive)
+print("Uso de memoria (KB):", memoria_pico_kb_exhaustive)
+print("Tiempo de ejecución: ",tiempo1)
+print("Mejor Ruta Búsqueda Aleatoria:", best_route_random, "Distancia:", min_distance_random)
+print("Uso de memoria (KB):", memoria1)
+print("Tiempo de ejecución: ",tiempo2)
+print("Mejor Ruta Hill-Climbing:", best_route_hill_climb, "Distancia:", min_distance_hill_climb)
+print("Uso de memoria (KB):", memoria2)
+print("Tiempo de ejecución: ",tiempo3)
