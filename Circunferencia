@@ -1,0 +1,141 @@
+import random
+import math
+import matplotlib.pyplot as plt
+from time import time
+import tracemalloc
+
+# Función para calcular la distancia entre dos ciudades
+def calcular_distancia(ciudad1, ciudad2):
+    return math.sqrt((ciudad1[0] - ciudad2[0]) ** 2 + (ciudad1[1] - ciudad2[1]) ** 2)
+
+# Función para calcular el costo total de una ruta
+def calcular_costo(ruta, ciudades):
+    costo = 0
+    for i in range(len(ruta) - 1):
+        costo += calcular_distancia(ciudades[ruta[i]], ciudades[ruta[i + 1]])
+    costo += calcular_distancia(ciudades[ruta[-1]], ciudades[ruta[0]])  # Regreso al inicio
+    return costo
+
+# Generación de ciudades en un círculo
+def generar_ciudades(n, radio=10):
+    ciudades = []
+    for i in range(n):
+        angulo = 2 * math.pi * i / n
+        x = radio * math.cos(angulo)
+        y = radio * math.sin(angulo)
+        ciudades.append((x, y))
+    return ciudades
+
+aleatorio = random.randint(10,10)
+
+# Búsqueda Aleatoria con monitoreo de tiempo y memoria
+def busqueda_aleatoria(ciudades, iteraciones=10000):
+    tracemalloc.start()  # Iniciar monitoreo de memoria
+    tiempo_inicio = time()  # Iniciar cronómetro
+
+    n = len(ciudades)
+    mejor_ruta = list(range(n))
+    random.shuffle(mejor_ruta)
+    mejor_costo = calcular_costo(mejor_ruta, ciudades)
+
+    for _ in range(iteraciones):
+        ruta_aleatoria = list(range(n))
+        random.shuffle(ruta_aleatoria)
+        costo = calcular_costo(ruta_aleatoria, ciudades)
+        if costo < mejor_costo:
+            mejor_ruta, mejor_costo = ruta_aleatoria, costo
+
+    tiempo_total = time() - tiempo_inicio  # Calcular tiempo total
+    memoria_actual, memoria_pico = tracemalloc.get_traced_memory()  # Obtener uso de memoria
+    tracemalloc.stop()  # Detener monitoreo de memoria
+
+    # Convertir la memoria pico a KB
+    memoria_pico_kb = memoria_pico / 1024
+
+    return mejor_ruta, mejor_costo, tiempo_total, memoria_pico_kb
+
+# Función Tweak para Hill-Climbing
+def tweak(ruta):
+    n = len(ruta)
+    nueva_ruta = ruta[:]
+    operador = random.choice(["invertir", "intercambiar", "insertar"])
+
+    if operador == "invertir":
+        i, j = sorted(random.sample(range(n), 2))
+        nueva_ruta[i:j + 1] = reversed(nueva_ruta[i:j + 1])
+
+    elif operador == "intercambiar":
+        i, j = random.sample(range(n), 2)
+        nueva_ruta[i], nueva_ruta[j] = nueva_ruta[j], nueva_ruta[i]
+
+    elif operador == "insertar":
+        i, j = random.sample(range(n), 2)
+        ciudad = nueva_ruta.pop(i)
+        nueva_ruta.insert(j, ciudad)
+
+    return nueva_ruta
+
+# Búsqueda Hill-Climbing
+def hill_climbing(ciudades, iteraciones=10000):
+    tracemalloc.start()  # Iniciar monitoreo de memoria
+    tiempo_inicio = time()
+
+    n = len(ciudades)
+    ruta_actual = list(range(n))
+    random.shuffle(ruta_actual)
+    costo_actual = calcular_costo(ruta_actual, ciudades)
+
+    for _ in range(iteraciones):
+        nueva_ruta = tweak(ruta_actual)
+        nuevo_costo = calcular_costo(nueva_ruta, ciudades)
+
+        if nuevo_costo < costo_actual:
+            ruta_actual, costo_actual = nueva_ruta, nuevo_costo
+
+    tiempo_total = time() - tiempo_inicio  # Calcular tiempo total
+    memoria_actual, memoria_pico = tracemalloc.get_traced_memory()  # Obtener uso de memoria
+    tracemalloc.stop()  # Detener monitoreo de memoria
+
+    # Convertir la memoria pico a KB
+    memoria_pico_kb = memoria_pico / 1024
+
+    return ruta_actual, costo_actual, tiempo_total, memoria_pico_kb
+
+# Función para dibujar las ciudades y la ruta
+def dibujar_ruta(ciudades, ruta, titulo="Ruta TSP"):
+    x = [ciudades[i][0] for i in ruta] + [ciudades[ruta[0]][0]]
+    y = [ciudades[i][1] for i in ruta] + [ciudades[ruta[0]][1]]
+
+    plt.figure(figsize=(8, 8))
+    plt.plot(x, y, 'bo-', markersize=8, label="Ruta")  # Ruta y ciudades
+    for i, (cx, cy) in enumerate(ciudades):
+        plt.text(cx, cy, str(i), fontsize=12, ha="right")  # Índices de ciudades
+
+    plt.title(titulo)
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.grid(True)
+    plt.axis("equal")
+    plt.legend()
+    plt.show()
+
+# Ejemplo de uso
+ciudades = generar_ciudades(aleatorio)
+print("Número de Ciudades:", aleatorio)
+print("Ciudades:", ciudades)
+
+# Búsqueda Aleatoria
+mejor_ruta_aleatoria, mejor_costo_aleatorio, tiempo_aleatorio, memoria_aleatoria = busqueda_aleatoria(ciudades)
+print("ruta Búsqueda Aleatoria :", mejor_ruta_aleatoria)
+print("Búsqueda Aleatoria - Costo:", mejor_costo_aleatorio)
+print("Tiempo de ejecución de Búsqueda Aleatoria:", tiempo_aleatorio, "segundos")
+print("Uso de memoria pico en Búsqueda Aleatoria:", memoria_aleatoria, "KB")
+dibujar_ruta(ciudades, mejor_ruta_aleatoria, "Búsqueda Aleatoria")
+
+# Búsqueda Hill-Climbing
+mejor_ruta_hill, mejor_costo_hill, tiempo, memoria = hill_climbing(ciudades)
+print("Hill-Climbing - Mejor ruta:", mejor_ruta_hill)
+print("Hill-Climbing - Costo:", mejor_costo_hill)
+print("Tiempo de ejecución de Búsqueda Aleatoria:", tiempo, "segundos")
+print("Uso de memoria pico en Búsqueda Aleatoria:", memoria, "KB")
+dibujar_ruta(ciudades, mejor_ruta_hill, "Mejor Ruta - Hill Climbing")
